@@ -1,4 +1,121 @@
+import gsap from "gsap"
 import * as THREE from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import * as dat from "dat-gui"
+// colors
+
+const mainColor = {
+    r: 20 / 255,
+    g: 40 / 255,
+    b: 29 / 255,
+}
+
+const hoverColor = {
+    r: 143 / 255,
+    g: 187 / 255,
+    b: 153 / 255,
+}
+// dat.gui
+const gui = new dat.GUI()
+const world = {
+    plane: {
+        width: 400,
+        height: 400,
+        widthSegments: 50,
+        heightSegments: 50,
+    },
+}
+gui.add(world.plane, "width", 1, 500).onChange(generatePlaneGeometry)
+gui.add(world.plane, "height", 1, 500).onChange(generatePlaneGeometry)
+gui.add(world.plane, "widthSegments", 1, 100).onChange(generatePlaneGeometry)
+gui.add(world.plane, "heightSegments", 1, 100).onChange(generatePlaneGeometry)
+
+function transformVertices() {
+    const { array: vertices } = planeMesh.geometry.attributes.position
+
+    for (let i = 0; i < vertices.length; i += 3) {
+        const x = vertices[i]
+        const y = vertices[i + 1]
+        const z = vertices[i + 2]
+
+        vertices[i] = x + (Math.random() - 0.5) * 2
+        vertices[i + 1] = y + (Math.random() - 0.5) * 2
+        vertices[i + 2] = (z + Math.random() - 0.5) * 7.5
+    }
+}
+
+function generatePlaneGeometry() {
+    planeMesh.geometry.dispose()
+    planeMesh.geometry = new THREE.PlaneGeometry(
+        world.plane.width,
+        world.plane.height,
+        world.plane.widthSegments,
+        world.plane.heightSegments
+    )
+    transformVertices()
+}
+function animate() {
+    requestAnimationFrame(animate)
+    renderer.render(scene, camera)
+    raycaster.setFromCamera(mouse, camera)
+    const intersections = raycaster.intersectObject(planeMesh)
+    const { color } = planeMesh.geometry.attributes
+    color.needsUpdate = true
+
+    if (intersections.length > 0) {
+        color.setXYZ(
+            intersections[0].face.a,
+            hoverColor.r,
+            hoverColor.g,
+            hoverColor.b
+        )
+        color.setXYZ(
+            intersections[0].face.b,
+            hoverColor.r,
+            hoverColor.g,
+            hoverColor.b
+        )
+        color.setXYZ(
+            intersections[0].face.c,
+            hoverColor.r,
+            hoverColor.g,
+            hoverColor.b
+        )
+        const fadingColor = { ...hoverColor }
+        gsap.to(fadingColor, {
+            r: mainColor.r,
+            g: mainColor.g,
+            b: mainColor.b,
+            duration: 1,
+            ease: "power2.Out",
+            onUpdate: () => {
+                color.setXYZ(
+                    intersections[0].face.a,
+                    fadingColor.r,
+                    fadingColor.g,
+                    fadingColor.b
+                )
+                color.setXYZ(
+                    intersections[0].face.b,
+                    fadingColor.r,
+                    fadingColor.g,
+                    fadingColor.b
+                )
+                color.setXYZ(
+                    intersections[0].face.c,
+                    fadingColor.r,
+                    fadingColor.g,
+                    fadingColor.b
+                )
+            },
+        })
+    }
+}
+// out of bounds mouse position so there's no intersection on load
+const mouse = {
+    x: -10,
+    y: 10,
+}
 
 const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(
@@ -7,22 +124,54 @@ const camera = new THREE.PerspectiveCamera(
     0.1, // near clipping plane -> how close does the object have to be to the camera to be clipped out
     1000 // far clipping plane -> how far does the object have to be from the camera to be clipped
 )
-const renderer = new THREE.WebGLRenderer()
-const boxGeometry = new THREE.BoxGeometry(1, 1, 1)
-const material = new THREE.MeshBasicMaterial({ color: 0x0000ff })
-const box = new THREE.Mesh(boxGeometry, material)
-let flag = true
-function animate() {
-    requestAnimationFrame(animate)
-    renderer.render(scene, camera)
-    box.rotation.z += 0.01
-    box.rotation.y -= 0.01
+camera.rotateX(1)
+const raycaster = new THREE.Raycaster()
+const renderer = new THREE.WebGLRenderer({ antialias: true })
+const planeGeometry = new THREE.PlaneGeometry(
+    world.plane.width,
+    world.plane.height,
+    world.plane.widthSegments,
+    world.plane.heightSegments
+)
+const planeMaterial = new THREE.MeshPhongMaterial({
+    side: THREE.DoubleSide,
+    flatShading: true,
+    vertexColors: true,
+})
+const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial)
+const light = new THREE.DirectionalLight(0xfdfbd3, 1)
+const backLight = new THREE.DirectionalLight(0xffffff, 1)
+
+const colors = []
+const { count } = planeMesh.geometry.attributes.position
+for (let i = 0; i < count; ++i) {
+    colors.push(mainColor.r, mainColor.g, mainColor.b)
 }
+planeMesh.geometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(new Float32Array(colors), 3)
+)
 
-scene.add(box)
+transformVertices()
 
-camera.position.z = 5 // move camera 5 units towards us (z-axis)
+light.position.set(0, 0.75, 1)
+backLight.position.set(0, 1, -1)
+
+new OrbitControls(camera, renderer.domElement)
+camera.position.z = 100 // move camera towards us (z-axis)
+
+scene.add(planeMesh)
+scene.add(light)
+scene.add(backLight)
 
 renderer.setSize(innerWidth, innerHeight)
+renderer.setPixelRatio(devicePixelRatio)
+
 document.body.appendChild(renderer.domElement)
+
 animate()
+
+addEventListener("mousemove", (e) => {
+    mouse.x = (e.clientX / innerWidth) * 2 - 1
+    mouse.y = -(e.clientY / innerHeight) * 2 + 1
+})
