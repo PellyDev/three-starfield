@@ -160,7 +160,6 @@ const planeMaterial = new THREE.MeshPhongMaterial({
 })
 
 const planeMesh = new THREE.Mesh(planeGeometry, planeMaterial)
-console.log(planeMesh.geometry.attributes)
 const light = new THREE.DirectionalLight(0xfdfbd3, 1)
 const backLight = new THREE.DirectionalLight(0xffffff, 1)
 
@@ -174,9 +173,11 @@ planeMesh.geometry.setAttribute(
     new THREE.BufferAttribute(new Float32Array(colors), 3)
 )
 
+planeMesh.position.set(0, -25, -20)
+planeMesh.rotateX(-Math.PI * 0.25)
 transformVertices()
 
-light.position.set(0, 1, 1)
+light.position.set(0, 2, 0)
 backLight.position.set(0, 1, -1)
 
 new OrbitControls(camera, renderer.domElement)
